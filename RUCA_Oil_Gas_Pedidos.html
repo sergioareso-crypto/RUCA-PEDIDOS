@@ -164,6 +164,8 @@
   .prod-input{width:100%; min-width:220px; padding:7px 8px; border:1.5px solid var(--line); border-radius:5px; font-size:13.5px;}
   .qty-input{width:70px; padding:7px 8px; border:1.5px solid var(--line); border-radius:5px; text-align:center;}
   .code-cell, .env-cell{color:var(--steel); font-size:12.5px;}
+  .price-input, .subtotal-input{width:100%; padding:7px 8px; border:1.5px solid var(--line); border-radius:5px; text-align:right; font-variant-numeric:tabular-nums;}
+  .subtotal-input{font-weight:600;}
   .price-cell, .subtotal-cell{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap;}
   .subtotal-cell{font-weight:600;}
   .remove-btn{
@@ -739,7 +741,7 @@
           <input type="text" id="cli_cuit" placeholder="30-12345678-9">
         </div>
         <div class="field span2">
-          <label>Dirección de entrega</label>
+          <label>Dirección de entrega *</label>
           <input type="text" id="cli_direccion" placeholder="Calle, número, ciudad">
         </div>
         <div class="field">
@@ -763,8 +765,9 @@
           <input type="text" id="cli_vendedor" placeholder="Nombre del vendedor">
         </div>
         <div class="field">
-          <label>Condición de pago</label>
+          <label>Condición de pago *</label>
           <select id="cli_condicion">
+            <option value="">-- Elegí la condición --</option>
             <option>Contado</option>
             <option>Cuenta corriente</option>
             <option>Tarjeta</option>
@@ -801,8 +804,8 @@
     <td class="code-cell">—</td>
     <td class="env-cell">—</td>
     <td><input type="number" class="qty-input" value="1" min="1" step="1"></td>
-    <td class="price-cell">$ 0,00</td>
-    <td class="subtotal-cell">$ 0,00</td>
+    <td><input type="number" class="price-input" value="0" min="0" step="0.01"></td>
+    <td><input type="number" class="subtotal-input" value="0" min="0" step="0.01"></td>
     <td><button class="remove-btn" type="button" title="Eliminar">✕</button></td>
   </tr></tbody>
       </table>
@@ -882,11 +885,19 @@
     <!-- MÓDULO 6: ACTUALIZACIÓN DE PRECIOS -->
     <section class="module update-module">
       <div class="module-title"><span class="num">6</span>Actualización de Lista de Precios</div>
-      <p class="update-desc">Subí un archivo Excel (.xlsx) con la lista de precios de Gulf Oil para reemplazar el catálogo de productos cargado en el formulario.</p>
+      <p class="update-desc">
+        Subí un archivo Excel (.xlsx) con productos de Gulf Oil. Por defecto, los productos del archivo se
+        <strong>suman</strong> al catálogo que ya tenés cargado (si un producto ya existe, se actualiza su precio; si
+        es nuevo, se agrega). Tildá la opción de abajo solo si querés <strong>reemplazar todo</strong> el catálogo por
+        el contenido de este archivo.
+      </p>
       <div class="update-row">
         <input type="file" id="priceFileInput" accept=".xlsx,.xls">
         <button class="btn btn-secondary" id="priceUpdateBtn" type="button">Actualizar precios</button>
       </div>
+      <label style="display:flex; align-items:center; gap:6px; font-weight:normal; text-transform:none; font-size:13px; color:var(--steel); margin-top:10px;">
+        <input type="checkbox" id="priceReemplazarTodo" style="width:auto;"> Reemplazar todo el catálogo (en vez de sumar)
+      </label>
       <div class="update-status" id="priceUpdateStatus"></div>
     </section>
 
@@ -899,6 +910,27 @@
         <button class="btn btn-secondary" id="clientUpdateBtn" type="button">Actualizar clientes</button>
       </div>
       <div class="update-status" id="clientUpdateStatus"></div>
+    </section>
+
+    <!-- MÓDULO 8: ACTUALIZACIÓN DE PRECIOS TECNECO -->
+    <section class="module update-module">
+      <div class="module-title"><span class="num">8</span>Actualización de Lista de Precios — Tecneco</div>
+      <p class="update-desc">
+        Subí un archivo Excel (.xlsx) con la lista de precios de Tecneco para sumar ese catálogo al buscador de
+        productos del pedido. Usa el mismo formato de columnas que la lista de Gulf (Código, Producto, Envase,
+        Tecnología, Precio). Estos productos aparecen en el buscador con el prefijo <strong>[Tecneco]</strong> para
+        diferenciarlos de los de Gulf. Por defecto, los productos del archivo se <strong>suman</strong> al catálogo de
+        Tecneco que ya tenías (si un producto ya existe, se actualiza su precio; si es nuevo, se agrega) y no afecta a
+        los productos de Gulf. Tildá la opción de abajo solo si querés reemplazar todo el catálogo de Tecneco.
+      </p>
+      <div class="update-row">
+        <input type="file" id="tecnecoFileInput" accept=".xlsx,.xls">
+        <button class="btn btn-secondary" id="tecnecoUpdateBtn" type="button">Actualizar precios Tecneco</button>
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; font-weight:normal; text-transform:none; font-size:13px; color:var(--steel); margin-top:10px;">
+        <input type="checkbox" id="tecnecoReemplazarTodo" style="width:auto;"> Reemplazar todo el catálogo de Tecneco (en vez de sumar)
+      </label>
+      <div class="update-status" id="tecnecoUpdateStatus"></div>
     </section>
   </main>
 
@@ -1219,14 +1251,28 @@
     <section class="module">
       <div class="module-title"><span class="num">6</span>Buscar / corregir un recibo</div>
       <div class="grid">
-        <div class="field span2">
+        <div class="field">
           <label>N° de Recibo</label>
-          <input type="text" id="reciboBuscarInput" placeholder="Escribí el número de recibo y presioná Enter...">
+          <input type="text" id="reciboBuscarInput" placeholder="Ej: 0001">
+        </div>
+        <div class="field">
+          <label>Fecha</label>
+          <input type="date" id="reciboBuscarFecha">
+        </div>
+        <div class="field">
+          <label>Cliente</label>
+          <input type="text" id="reciboBuscarCliente" placeholder="Nombre del cliente...">
         </div>
         <div class="field" style="display:flex; align-items:flex-end;">
-          <button class="btn btn-secondary" id="reciboBuscarBtn" type="button" style="width:100%;">Buscar recibo</button>
+          <button class="btn btn-secondary" id="reciboBuscarBtn" type="button" style="width:100%;">Buscar</button>
         </div>
       </div>
+      <p style="font-size:12px; color:var(--steel); margin-top:6px;">
+        Podés completar cualquier combinación de estos campos (por ejemplo, solo la fecha y el cliente, sin saber el
+        número de recibo) o dejarlos todos vacíos y tocar "Buscar" para ver los últimos movimientos. Presionar Enter en
+        cualquier campo también busca.
+      </p>
+      <div id="reciboListaResultados" style="margin-top:14px;"></div>
       <div id="reciboResultado" style="margin-top:12px;"></div>
     </section>
 
@@ -1707,19 +1753,59 @@ function fmt(n){
 // Build datalist + lookup map
 const productList = document.getElementById('productList');
 const lookup = {};
+let TECNECO_PRODUCTS = [];
+
+// ============ PERSISTENCIA DE CATÁLOGOS (Gulf, Tecneco y Clientes) ============
+// Guarda los catálogos actualizados por Excel en el navegador, para que no se pierdan
+// al cerrar y volver a abrir el archivo (antes había que volver a subir el Excel cada vez).
+const CATALOGOS_KEY = {
+  productos: 'ruca_catalogo_gulf_v1',
+  tecneco: 'ruca_catalogo_tecneco_v1',
+  clientes: 'ruca_catalogo_clientes_v1'
+};
+
+function cargarCatalogoGuardado(key){
+  try{
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function guardarCatalogo(key, datos){
+  try{
+    localStorage.setItem(key, JSON.stringify(datos));
+    return true;
+  }catch(e){
+    return false; // por ejemplo, si el navegador se quedó sin espacio disponible
+  }
+}
+
+// Si hay una versión guardada de una sesión anterior, la usamos en vez del catálogo
+// "de fábrica" que viene escrito en este archivo.
+{
+  const productosGuardados = cargarCatalogoGuardado(CATALOGOS_KEY.productos);
+  if(productosGuardados && productosGuardados.length > 0) PRODUCTS = productosGuardados;
+
+  const tecnecoGuardado = cargarCatalogoGuardado(CATALOGOS_KEY.tecneco);
+  if(tecnecoGuardado && tecnecoGuardado.length > 0) TECNECO_PRODUCTS = tecnecoGuardado;
+
+  const clientesGuardados = cargarCatalogoGuardado(CATALOGOS_KEY.clientes);
+  if(clientesGuardados && clientesGuardados.length > 0) CLIENTS = clientesGuardados;
+}
 
 function rebuildProductList(){
   productList.innerHTML = '';
   Object.keys(lookup).forEach(k => delete lookup[k]);
-  PRODUCTS.forEach(p=>{
-    const label = `${p.producto} — ${p.envase}`;
-    const key = label;
-    if(!lookup[key]) lookup[key] = p;
-    else {
-      const newKey = `${label} [${p.codigo}]`;
-      lookup[newKey] = p;
-    }
-  });
+
+  function agregarProducto(p, prefijo){
+    const label = prefijo ? `${prefijo} ${p.producto} — ${p.envase}` : `${p.producto} — ${p.envase}`;
+    let key = label;
+    if(lookup[key]) key = `${label} [${p.codigo}]`;
+    lookup[key] = p;
+  }
+
+  PRODUCTS.forEach(p => agregarProducto(p, ''));
+  TECNECO_PRODUCTS.forEach(p => agregarProducto(p, '[Tecneco]'));
+
   Object.keys(lookup).forEach(k=>{
     const opt = document.createElement('option');
     opt.value = k;
@@ -1782,8 +1868,8 @@ function addRow(){
     <td class="code-cell">—</td>
     <td class="env-cell">—</td>
     <td><input type="number" class="qty-input" value="1" min="1" step="1"></td>
-    <td class="price-cell">$ 0,00</td>
-    <td class="subtotal-cell">$ 0,00</td>
+    <td><input type="number" class="price-input" value="0" min="0" step="0.01"></td>
+    <td><input type="number" class="subtotal-input" value="0" min="0" step="0.01"></td>
     <td><button class="remove-btn" type="button" title="Eliminar">✕</button></td>
   `;
   itemsBody.appendChild(tr);
@@ -1792,18 +1878,24 @@ function addRow(){
   const qtyInput = tr.querySelector('.qty-input');
   const codeCell = tr.querySelector('.code-cell');
   const envCell = tr.querySelector('.env-cell');
-  const priceCell = tr.querySelector('.price-cell');
-  const subtotalCell = tr.querySelector('.subtotal-cell');
+  const priceInput = tr.querySelector('.price-input');
+  const subtotalInput = tr.querySelector('.subtotal-input');
   const removeBtn = tr.querySelector('.remove-btn');
 
   let currentProduct = null;
-  tr._getData = () => ({product: currentProduct, qty: parseFloat(qtyInput.value) || 0});
+  tr._getData = () => ({
+    product: currentProduct,
+    qty: parseFloat(qtyInput.value) || 0,
+    precio: parseFloat(priceInput.value) || 0,
+    subtotal: parseFloat(subtotalInput.value) || 0
+  });
 
-  function recalcRow(){
+  // Recalcula el subtotal de la fila a partir de cantidad × precio unitario
+  // (el precio unitario y el subtotal se pueden corregir a mano en cualquier momento).
+  function recalcDesdeCantidadYPrecio(){
     const qty = parseFloat(qtyInput.value) || 0;
-    const price = currentProduct ? currentProduct.precio : 0;
-    const subtotal = qty * price;
-    subtotalCell.textContent = fmt(subtotal);
+    const price = parseFloat(priceInput.value) || 0;
+    subtotalInput.value = (qty * price).toFixed(2);
     recalcTotals();
   }
 
@@ -1813,17 +1905,22 @@ function addRow(){
       currentProduct = match;
       codeCell.textContent = match.codigo || '—';
       envCell.textContent = match.envase || '—';
-      priceCell.textContent = fmt(match.precio);
+      priceInput.value = match.precio;
     } else {
       currentProduct = null;
       codeCell.textContent = '—';
       envCell.textContent = '—';
-      priceCell.textContent = '$ 0,00';
+      priceInput.value = 0;
     }
-    recalcRow();
+    recalcDesdeCantidadYPrecio();
   });
 
-  qtyInput.addEventListener('input', recalcRow);
+  qtyInput.addEventListener('input', recalcDesdeCantidadYPrecio);
+  priceInput.addEventListener('input', recalcDesdeCantidadYPrecio);
+  // Si el usuario corrige el subtotal directamente (por ejemplo, un ajuste puntual),
+  // se respeta ese valor tal cual hasta que vuelva a tocar cantidad o precio unitario.
+  subtotalInput.addEventListener('input', recalcTotals);
+
   removeBtn.addEventListener('click', ()=>{
     tr.remove();
     renumberRows();
@@ -1845,7 +1942,8 @@ function parseCurrencyCell(text){
 function recalcTotals(){
   let subtotal = 0;
   [...itemsBody.children].forEach(tr=>{
-    subtotal += parseCurrencyCell(tr.querySelector('.subtotal-cell').textContent);
+    const subtotalInput = tr.querySelector('.subtotal-input');
+    subtotal += parseFloat(subtotalInput.value) || 0;
   });
   const descPct = parseFloat(document.getElementById('totDescuento').value) || 0;
   const afterDesc = subtotal * (1 - descPct/100);
@@ -1862,7 +1960,10 @@ document.getElementById('addRowBtn').addEventListener('click', addRow);
 document.getElementById('totDescuento').addEventListener('input', recalcTotals);
 document.getElementById('totIvaCheck').addEventListener('change', recalcTotals);
 
-document.getElementById('printBtn').addEventListener('click', ()=> window.print());
+document.getElementById('printBtn').addEventListener('click', ()=>{
+  if(bloquearSiIncompleto()) return;
+  window.print();
+});
 
 function buildMessageLines(){
   const nombre = document.getElementById('cli_nombre').value || 'Sin especificar';
@@ -1944,7 +2045,31 @@ function toWhatsAppFormatAR(value){
   return '549' + digits;
 }
 
+// ============ VALIDACIÓN ANTES DE GUARDAR / ENVIAR EL PEDIDO ============
+// No deja "cerrar" el pedido (guardarlo, mandarlo por WhatsApp o email) hasta que estén
+// completos: la condición de pago, la dirección/lugar de entrega, y al menos un producto.
+function validarPedidoCompleto(){
+  const errores = [];
+  if(!document.getElementById('cli_nombre').value.trim()) errores.push('el nombre del cliente');
+  if(!document.getElementById('cli_direccion').value.trim()) errores.push('la dirección de entrega');
+  if(!document.getElementById('cli_localidad').value.trim()) errores.push('la localidad (lugar de entrega)');
+  if(!document.getElementById('cli_condicion').value) errores.push('la condición de pago');
+  const total = parseCurrencyCell(document.getElementById('totTotal').textContent);
+  if(total <= 0) errores.push('al menos un producto cargado');
+  return errores;
+}
+
+function bloquearSiIncompleto(){
+  const errores = validarPedidoCompleto();
+  if(errores.length > 0){
+    alert('Antes de continuar, completá lo siguiente:\n\n• ' + errores.join('\n• '));
+    return true;
+  }
+  return false;
+}
+
 document.getElementById('whatsappBtn').addEventListener('click', ()=>{
+  if(bloquearSiIncompleto()) return;
   const msg = buildWhatsAppMessage();
   const rawPhone = toWhatsAppFormatAR(document.getElementById('dist_whatsapp').value) || toWhatsAppFormatAR('1135968881');
   const encoded = encodeURIComponent(msg);
@@ -1953,6 +2078,7 @@ document.getElementById('whatsappBtn').addEventListener('click', ()=>{
 });
 
 document.getElementById('emailBtn').addEventListener('click', ()=>{
+  if(bloquearSiIncompleto()) return;
   const esCotizacion = currentMode === 'cotizacion';
   const nombre = document.getElementById('cli_nombre').value || 'Cliente';
   const pedido = document.getElementById('cli_pedido').value;
@@ -1991,8 +2117,8 @@ function buildOrderData(numero){
       codigo: data.product.codigo,
       envase: data.product.envase,
       cantidad: data.qty,
-      precioUnitario: data.product.precio,
-      subtotal: data.product.precio * data.qty
+      precioUnitario: data.precio,
+      subtotal: data.subtotal
     });
   });
   return {
@@ -2022,13 +2148,8 @@ function buildOrderData(numero){
 
 document.getElementById('saveOrderBtn').addEventListener('click', ()=>{
   const statusEl = document.getElementById('saveOrderStatus');
-  const total = parseCurrencyCell(document.getElementById('totTotal').textContent);
+  if(bloquearSiIncompleto()) return;
   const esCotizacion = currentMode === 'cotizacion';
-  if(total <= 0){
-    statusEl.style.color = '#B3261E';
-    statusEl.textContent = `Cargá al menos un producto antes de guardar ${esCotizacion ? 'la cotización' : 'el pedido'}.`;
-    return;
-  }
   const seq = nextOrderSeq();
   const numeroStr = String(seq).padStart(4, '0');
   const order = buildOrderData(numeroStr);
@@ -2147,51 +2268,194 @@ function colIndexForTierEnvase(headerRow, tier){
   return norm.findIndex(h => patron.test(h));
 }
 
+function esFilaHeaderPrecios(row, expectedKeys){
+  const normRow = (row||[]).map(normalizeHeader);
+  const hits = expectedKeys.filter(k => normRow.some(cell => cell.includes(k)));
+  return hits.length >= 2;
+}
+
+// Lee uno o varios archivos de lista de precios. Soporta:
+// - Varias hojas (tabs) en el mismo archivo.
+// - Varias tablas/secciones con su propio encabezado dentro de la misma hoja.
+// - Nombres de columna con sinónimos habituales (Descripción, Presentación, Importe, etc.), no solo los exactos.
+// Devuelve también un diagnóstico para poder avisar qué hojas se leyeron y cuáles no se pudieron reconocer.
+// Convierte el valor de una celda de precio a número, sin importar si viene como número
+// directo o como texto con formato argentino ($ 3.996,20 -> 3996.20) u otras variantes.
+function parsearPrecioCelda(valorRaw){
+  if(valorRaw === null || valorRaw === undefined || valorRaw === '') return 0;
+  if(typeof valorRaw === 'number') return valorRaw;
+  let texto = valorRaw.toString().trim().replace(/[^0-9.,-]/g, '');
+  if(texto === '') return 0;
+  const tieneComa = texto.includes(',');
+  const tienePunto = texto.includes('.');
+  if(tieneComa && tienePunto){
+    // Formato argentino: punto = separador de miles, coma = decimal. Ej: "3.996,20"
+    texto = texto.replace(/\./g, '').replace(',', '.');
+  } else if(tieneComa && !tienePunto){
+    // Solo coma -> es el separador decimal. Ej: "3996,20"
+    texto = texto.replace(',', '.');
+  } else if(tienePunto && !tieneComa){
+    const partes = texto.split('.');
+    if(partes.length > 2 || (partes.length === 2 && partes[1].length === 3 && partes[0].length <= 3)){
+      // Varios puntos, o un solo punto seguido de exactamente 3 dígitos (patrón de miles: "3.996") -> son separadores de miles.
+      texto = partes.join('');
+    }
+    // Si no, es un punto decimal normal (ej "3996.20") y se deja tal cual.
+  }
+  const n = parseFloat(texto);
+  return isNaN(n) ? 0 : n;
+}
+
 function parsePriceWorkbook(workbook){
+  const HEADER_KEYS = ['codigo','cod','sku','producto','descripcion','detalle','articulo','denominacion',
+    'envase','presentacion','formato','tecnologia','tipo','precio','importe','valor','preciolista'];
   const products = [];
+  const diagnostico = { hojasLeidas: [], hojasSinDatos: [] };
+
   workbook.SheetNames.forEach(sheetName=>{
     const ws = workbook.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
-    if(!rows.length) return;
-    const headerRowIdx = findHeaderRow(rows, ['codigo','producto','envase','tecnologia','precio']);
-    if(headerRowIdx === -1) return;
-    const headerRow = rows[headerRowIdx];
-    const idxCodigo = colIndexFor(headerRow, ['codigo']);
-    const idxProducto = colIndexFor(headerRow, ['producto']);
-    const idxEnvase = colIndexFor(headerRow, ['envase']);
-    const idxTec = colIndexFor(headerRow, ['tecnologia']);
-    const idxPrecio1 = colIndexFor(headerRow, ['3eracolumna','precio','preciolista']);
-    let currentCat = sheetName;
-    for(let r = headerRowIdx + 1; r < rows.length; r++){
-      const row = rows[r];
-      if(!row || row.every(c => c === null || c === '')) continue;
-      const producto = idxProducto !== -1 ? row[idxProducto] : null;
-      const codigo = idxCodigo !== -1 ? row[idxCodigo] : null;
-      if((producto === null || producto === '') && typeof codigo === 'string'){
-        currentCat = codigo.trim();
-        continue;
-      }
-      if(producto === null || producto === '') continue;
-      const precioRaw = idxPrecio1 !== -1 ? row[idxPrecio1] : null;
-      const precio = typeof precioRaw === 'number' ? precioRaw : parseFloat((precioRaw||'0').toString().replace(/[^0-9.,-]/g,'').replace(',','.'));
-      products.push({
-        cat: currentCat,
-        codigo: codigo !== null && codigo !== undefined ? codigo : '',
-        producto: producto.toString().trim(),
-        envase: idxEnvase !== -1 && row[idxEnvase] ? row[idxEnvase].toString().trim() : '',
-        tec: idxTec !== -1 && row[idxTec] ? row[idxTec].toString().trim() : '',
-        precio: isNaN(precio) ? 0 : precio,
-        precio2: null
-      });
+    if(!rows.length){
+      diagnostico.hojasSinDatos.push(sheetName);
+      return;
     }
+
+    // Buscamos TODAS las filas que parezcan encabezado en toda la hoja (no solo las primeras 10),
+    // para soportar hojas con varias tablas/secciones (por ejemplo: Automotor, Industrial, Grasas...).
+    const headerIdxs = [];
+    for(let i=0; i<rows.length; i++){
+      if(esFilaHeaderPrecios(rows[i], HEADER_KEYS)) headerIdxs.push(i);
+    }
+
+    if(headerIdxs.length === 0){
+      diagnostico.hojasSinDatos.push(sheetName);
+      return;
+    }
+
+    let productosDeEstaHoja = 0;
+    let currentCat = sheetName;
+
+    headerIdxs.forEach((headerRowIdx, blockIdx)=>{
+      const headerRow = rows[headerRowIdx];
+      const idxCodigo = colIndexFor(headerRow, ['codigo','cod','sku']);
+      const idxProducto = colIndexFor(headerRow, ['producto','descripcion','detalle','articulo','denominacion']);
+      const idxEnvase = colIndexFor(headerRow, ['envase','presentacion','formato']);
+      const idxTec = colIndexFor(headerRow, ['tecnologia','tecnolig','tipo']);
+      const idxPrecio1 = colIndexFor(headerRow, ['preciolista','precio','importe','valor']);
+
+      const finBloque = (blockIdx + 1 < headerIdxs.length) ? headerIdxs[blockIdx + 1] : rows.length;
+
+      for(let r = headerRowIdx + 1; r < finBloque; r++){
+        const row = rows[r];
+        if(!row || row.every(c => c === null || c === '')) continue;
+        const producto = idxProducto !== -1 ? row[idxProducto] : null;
+        const codigo = idxCodigo !== -1 ? row[idxCodigo] : null;
+        const envaseVal = idxEnvase !== -1 ? row[idxEnvase] : null;
+        const precioValRaw = idxPrecio1 !== -1 ? row[idxPrecio1] : null;
+
+        const tieneEnvase = envaseVal !== null && envaseVal !== '';
+        const tienePrecio = precioValRaw !== null && precioValRaw !== '' && precioValRaw !== 0;
+
+        // Fila puramente de categoría/separador (sin envase ni precio cargado en ningún lado):
+        // el nombre puede estar en la columna "Código" o en la columna "Producto" según el archivo.
+        if(!tieneEnvase && !tienePrecio){
+          if(producto === null || producto === ''){
+            if(typeof codigo === 'string' && codigo.trim() !== ''){
+              currentCat = codigo.trim();
+            }
+            continue;
+          }
+          currentCat = producto.toString().trim();
+          continue;
+        }
+
+        // Si la fila tiene envase o precio pero no tiene ni producto ni código, no hay nada que cargar.
+        if((producto === null || producto === '') && (codigo === null || codigo === '')) continue;
+
+        // Producto real: puede tener descripción de texto, o (como en algunas listas de filtros)
+        // solo un código sin descripción — en ese caso usamos el código como nombre.
+        const nombreProducto = (producto !== null && producto !== '') ? producto.toString().trim() : String(codigo).trim();
+        const precio = parsearPrecioCelda(precioValRaw);
+        products.push({
+          cat: currentCat,
+          codigo: codigo !== null && codigo !== undefined ? codigo : '',
+          producto: nombreProducto,
+          envase: envaseVal !== null && envaseVal !== undefined ? envaseVal.toString().trim() : '',
+          tec: idxTec !== -1 && row[idxTec] ? row[idxTec].toString().trim() : '',
+          precio: precio,
+          precio2: null
+        });
+        productosDeEstaHoja++;
+      }
+    });
+
+    diagnostico.hojasLeidas.push({ nombre: sheetName, productos: productosDeEstaHoja, bloques: headerIdxs.length });
   });
-  return products;
+
+  return { products, diagnostico };
+}
+
+function resumenDiagnosticoPrecios(diagnostico){
+  const partes = [];
+  if(diagnostico.hojasLeidas.length > 0){
+    const detalle = diagnostico.hojasLeidas.map(h => `${h.nombre} (${h.productos})`).join(', ');
+    partes.push(`Hojas leídas: ${detalle}.`);
+  }
+  if(diagnostico.hojasSinDatos.length > 0){
+    partes.push(`⚠ No se pudo reconocer el formato de: ${diagnostico.hojasSinDatos.join(', ')} — revisá que tengan una fila con encabezados como Código, Producto, Envase, Tecnología y Precio.`);
+  }
+  return partes.join(' ');
 }
 
 function showUpdateStatus(elId, message, ok){
   const el = document.getElementById(elId);
   el.textContent = message;
   el.className = 'update-status ' + (ok ? 'ok' : 'err');
+}
+
+// Identifica un producto de forma estable para poder sumar/actualizar sin duplicar:
+// Identifica un producto de forma estable para poder sumar/actualizar sin duplicar:
+// usa el código si está cargado; si no, la combinación producto+envase+tecnología+categoría
+// (así dos productos distintos que casualmente comparten nombre y envase no se pisan entre sí).
+function claveProducto(p){
+  const codigo = (p.codigo !== null && p.codigo !== undefined && String(p.codigo).trim() !== '')
+    ? String(p.codigo).trim().toLowerCase() : '';
+  if(codigo) return 'cod:' + codigo;
+  return 'pe:' + (p.producto||'').trim().toLowerCase()
+    + '|' + (p.envase||'').trim().toLowerCase()
+    + '|' + (p.tec||'').trim().toLowerCase()
+    + '|' + (p.cat||'').trim().toLowerCase();
+}
+
+// Suma los productos nuevos al catálogo existente: si un producto ya existía (mismo código,
+// o mismo producto+envase), actualiza su precio; si es nuevo, lo agrega al final.
+function mergeProductos(existentes, nuevos){
+  const porClave = new Map();
+  const ordenOriginal = [];
+  const yaOrdenado = new Set();
+  existentes.forEach(p=>{
+    const clave = claveProducto(p);
+    porClave.set(clave, p);
+    if(!yaOrdenado.has(clave)){
+      ordenOriginal.push(clave);
+      yaOrdenado.add(clave);
+    }
+  });
+  let agregados = 0, actualizados = 0;
+  nuevos.forEach(p=>{
+    const clave = claveProducto(p);
+    if(porClave.has(clave)){
+      actualizados++;
+    } else {
+      agregados++;
+    }
+    if(!yaOrdenado.has(clave)){
+      ordenOriginal.push(clave);
+      yaOrdenado.add(clave);
+    }
+    porClave.set(clave, p);
+  });
+  return { lista: ordenOriginal.map(clave => porClave.get(clave)), agregados, actualizados };
 }
 
 document.getElementById('priceUpdateBtn').addEventListener('click', ()=>{
@@ -2210,14 +2474,25 @@ document.getElementById('priceUpdateBtn').addEventListener('click', ()=>{
     try{
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, {type:'array'});
-      const products = parsePriceWorkbook(workbook);
+      const { products, diagnostico } = parsePriceWorkbook(workbook);
       if(products.length === 0){
-        showUpdateStatus('priceUpdateStatus', 'No se encontraron productos en el archivo. Verificá el formato.', false);
+        showUpdateStatus('priceUpdateStatus', 'No se encontraron productos en el archivo. Verificá el formato. ' + resumenDiagnosticoPrecios(diagnostico), false);
         return;
       }
-      PRODUCTS = products;
+      const diagnosticoTxt = resumenDiagnosticoPrecios(diagnostico);
+      let mensaje;
+      if(document.getElementById('priceReemplazarTodo').checked){
+        PRODUCTS = products;
+        mensaje = `✓ Catálogo reemplazado. Se cargaron ${products.length} productos. ${diagnosticoTxt}`;
+      } else {
+        const resultado = mergeProductos(PRODUCTS, products);
+        PRODUCTS = resultado.lista;
+        mensaje = `✓ ${resultado.agregados} producto(s) nuevo(s) agregado(s), ${resultado.actualizados} actualizado(s). Total en catálogo Gulf: ${PRODUCTS.length}. ${diagnosticoTxt}`;
+      }
       rebuildProductList();
-      showUpdateStatus('priceUpdateStatus', `✓ Se cargaron ${products.length} productos correctamente.`, true);
+      const guardadoOk = guardarCatalogo(CATALOGOS_KEY.productos, PRODUCTS);
+      if(!guardadoOk) mensaje += ' (No se pudo guardar para la próxima vez: sin espacio disponible en el navegador.)';
+      showUpdateStatus('priceUpdateStatus', mensaje, true);
     }catch(err){
       showUpdateStatus('priceUpdateStatus', 'Error al leer el archivo: ' + err.message, false);
     }
@@ -2311,9 +2586,55 @@ document.getElementById('clientUpdateBtn').addEventListener('click', ()=>{
       });
       CLIENTS = merged;
       rebuildClientList();
-      showUpdateStatus('clientUpdateStatus', `✓ Se cargaron ${newClients.length} clientes nuevos/actualizados. Total en base: ${merged.length}.`, true);
+      const guardadoOk = guardarCatalogo(CATALOGOS_KEY.clientes, CLIENTS);
+      let mensaje = `✓ Se cargaron ${newClients.length} clientes nuevos/actualizados. Total en base: ${merged.length}.`;
+      if(!guardadoOk) mensaje += ' (No se pudo guardar para la próxima vez: sin espacio disponible en el navegador.)';
+      showUpdateStatus('clientUpdateStatus', mensaje, true);
     }catch(err){
       showUpdateStatus('clientUpdateStatus', 'Error al leer el archivo: ' + err.message, false);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// ============ ACTUALIZACIÓN DE PRECIOS TECNECO ============
+document.getElementById('tecnecoUpdateBtn').addEventListener('click', ()=>{
+  const fileInput = document.getElementById('tecnecoFileInput');
+  const file = fileInput.files[0];
+  if(!file){
+    showUpdateStatus('tecnecoUpdateStatus', 'Elegí un archivo primero.', false);
+    return;
+  }
+  if(!xlsxDisponible()){
+    showUpdateStatus('tecnecoUpdateStatus', 'No se pudo cargar el lector de Excel (necesita conexión a internet la primera vez). Conectate a internet y volvé a intentar.', false);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, {type:'array'});
+      const { products, diagnostico } = parsePriceWorkbook(workbook);
+      if(products.length === 0){
+        showUpdateStatus('tecnecoUpdateStatus', 'No se encontraron productos en el archivo. Verificá el formato. ' + resumenDiagnosticoPrecios(diagnostico), false);
+        return;
+      }
+      const diagnosticoTxt = resumenDiagnosticoPrecios(diagnostico);
+      let mensaje;
+      if(document.getElementById('tecnecoReemplazarTodo').checked){
+        TECNECO_PRODUCTS = products;
+        mensaje = `✓ Catálogo de Tecneco reemplazado. Se cargaron ${products.length} productos. ${diagnosticoTxt}`;
+      } else {
+        const resultado = mergeProductos(TECNECO_PRODUCTS, products);
+        TECNECO_PRODUCTS = resultado.lista;
+        mensaje = `✓ ${resultado.agregados} producto(s) nuevo(s) agregado(s), ${resultado.actualizados} actualizado(s). Total en catálogo Tecneco: ${TECNECO_PRODUCTS.length}. ${diagnosticoTxt}`;
+      }
+      rebuildProductList();
+      const guardadoOk = guardarCatalogo(CATALOGOS_KEY.tecneco, TECNECO_PRODUCTS);
+      if(!guardadoOk) mensaje += ' (No se pudo guardar para la próxima vez: sin espacio disponible en el navegador.)';
+      showUpdateStatus('tecnecoUpdateStatus', mensaje, true);
+    }catch(err){
+      showUpdateStatus('tecnecoUpdateStatus', 'Error al leer el archivo: ' + err.message, false);
     }
   };
   reader.readAsArrayBuffer(file);
@@ -2322,6 +2643,8 @@ document.getElementById('clientUpdateBtn').addEventListener('click', ()=>{
 // Init
 document.getElementById('cli_fecha').valueAsDate = new Date();
 setAutoNumero();
+itemsBody.innerHTML = ''; // saca la fila de plantilla del HTML (sin buscador conectado) antes de agregar la real
+rowCount = 0;
 addRow();
 recalcTotals();
 
@@ -2720,7 +3043,6 @@ function renderTable(){
   document.getElementById('totRentabilidad').textContent = fmt(rentabilidad);
 }
 
-document.getElementById('printBtnResumen').addEventListener('click', ()=> window.print());
 
 document.getElementById('csvBtn').addEventListener('click', ()=>{
   const list = getFilteredSorted();
@@ -3010,23 +3332,146 @@ function todosLosMovimientosPorRecibo(numero){
   return resultados;
 }
 
+// Búsqueda combinada: recibo (parcial), fecha (exacta) y cliente (parcial), cualquier combinación.
+// Si los tres campos están vacíos, muestra los últimos movimientos cargados.
+function buscarRecibosAvanzado(){
+  const recibo = document.getElementById('reciboBuscarInput').value.trim().toLowerCase();
+  const fecha = document.getElementById('reciboBuscarFecha').value;
+  const clienteTexto = document.getElementById('reciboBuscarCliente').value.trim().toLowerCase();
+
+  const resultados = [];
+  Object.keys(LEDGER).forEach(cliente=>{
+    if(clienteTexto && !cliente.toLowerCase().includes(clienteTexto)) return;
+    (LEDGER[cliente] || []).forEach(m=>{
+      if(recibo && !(m.numeroRecibo || '').toLowerCase().includes(recibo)) return;
+      if(fecha && m.fecha !== fecha) return;
+      resultados.push({cliente, movimiento: m});
+    });
+  });
+
+  resultados.sort((a,b)=> (b.movimiento.fecha||'').localeCompare(a.movimiento.fecha||'') || b.movimiento.creadoEl.localeCompare(a.movimiento.creadoEl));
+
+  const sinFiltros = !recibo && !fecha && !clienteTexto;
+  const listaAMostrar = sinFiltros ? resultados.slice(0, 20) : resultados;
+
+  renderListaResultadosRecibo(listaAMostrar, sinFiltros, resultados.length);
+}
+
+function renderListaResultadosRecibo(lista, sinFiltros, totalEncontrados){
+  const cont = document.getElementById('reciboListaResultados');
+  const detalle = document.getElementById('reciboResultado');
+  detalle.innerHTML = '';
+
+  if(lista.length === 0){
+    cont.innerHTML = '<p class="empty-note">No se encontró ningún movimiento con esos datos.</p>';
+    return;
+  }
+
+  const encabezado = sinFiltros
+    ? `<p style="font-size:12px; color:var(--steel); margin-bottom:6px;">Mostrando los últimos ${lista.length} movimientos. Usá los filtros de arriba para buscar algo puntual.</p>`
+    : `<p style="font-size:12px; color:var(--steel); margin-bottom:6px;">${totalEncontrados} resultado(s) encontrado(s).</p>`;
+
+  let filas = '';
+  lista.forEach(({cliente, movimiento: m}, idx)=>{
+    const fechaFmt = m.fecha ? m.fecha.split('-').reverse().join('/') : '—';
+    filas += `
+      <tr>
+        <td>${fechaFmt}</td>
+        <td>${m.numeroRecibo || '—'}</td>
+        <td>${cliente}</td>
+        <td>${m.tipo === 'debe' ? 'Debe' : 'Haber'}</td>
+        <td class="num-cell">${fmt(m.importe)}</td>
+        <td><button type="button" class="ver-recibo-lista-btn" data-idx="${idx}" style="font-size:11.5px; padding:5px 10px; border:1px solid var(--gulf-blue); border-radius:4px; background:#fff; color:var(--gulf-blue); cursor:pointer;">Ver</button></td>
+      </tr>`;
+  });
+
+  cont.innerHTML = `
+    ${encabezado}
+    <table class="cc-table">
+      <thead><tr><th style="width:90px;">Fecha</th><th style="width:80px;">Recibo</th><th>Cliente</th><th style="width:70px;">Tipo</th><th style="width:120px;">Importe</th><th style="width:70px;"></th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+  `;
+
+  cont.querySelectorAll('.ver-recibo-lista-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const {cliente, movimiento} = lista[parseInt(btn.dataset.idx, 10)];
+      detalle.innerHTML = '';
+      detalle.appendChild(renderTarjetaCorreccionRecibo(cliente, movimiento));
+      detalle.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+}
+
+// Mantenido por compatibilidad: abre directamente la ficha de corrección de un recibo puntual
+// (lo usa, por ejemplo, el enlace de recibo dentro de la ficha del cliente).
 function buscarRecibo(numeroDesdeParametro){
-  const numero = (numeroDesdeParametro !== undefined ? numeroDesdeParametro : document.getElementById('reciboBuscarInput').value).trim();
-  const cont = document.getElementById('reciboResultado');
+  if(numeroDesdeParametro !== undefined){
+    document.getElementById('reciboBuscarInput').value = numeroDesdeParametro;
+    document.getElementById('reciboBuscarFecha').value = '';
+    document.getElementById('reciboBuscarCliente').value = '';
+  }
+  const numero = document.getElementById('reciboBuscarInput').value.trim();
+  const detalle = document.getElementById('reciboResultado');
   if(!numero){
-    cont.innerHTML = '<p class="empty-note">Escribí un número de recibo para buscar.</p>';
+    buscarRecibosAvanzado();
     return;
   }
   const encontrados = todosLosMovimientosPorRecibo(numero);
+  document.getElementById('reciboListaResultados').innerHTML = '';
+  detalle.innerHTML = '';
   if(encontrados.length === 0){
-    cont.innerHTML = `<p class="empty-note">No se encontró ningún movimiento con el recibo N° ${numero}.</p>`;
+    detalle.innerHTML = `<p class="empty-note">No se encontró ningún movimiento con el recibo N° ${numero}.</p>`;
     return;
   }
-  cont.innerHTML = '';
   encontrados.forEach(({cliente, movimiento})=>{
-    cont.appendChild(renderTarjetaCorreccionRecibo(cliente, movimiento));
+    detalle.appendChild(renderTarjetaCorreccionRecibo(cliente, movimiento));
   });
 }
+
+function imprimirReciboPago(cliente, m){
+  const fechaFmt = m.fecha ? m.fecha.split('-').reverse().join('/') : '—';
+  const esPago = m.tipo !== 'debe';
+  const tituloDoc = esPago ? 'RECIBO DE PAGO' : 'COMPROBANTE DE CARGO';
+  const etiquetaPersona = esPago ? 'Recibimos de' : 'Cliente';
+  const etiquetaImporte = esPago ? 'Importe recibido' : 'Importe del cargo';
+  const contenido = `
+    <div style="border:2px solid var(--gulf-blue); border-radius:10px; padding:26px; max-width:560px; margin:0 auto;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px;">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif; font-size:22px; color:var(--gulf-blue); font-weight:700;">${tituloDoc}</div>
+          <div style="font-size:13px; color:var(--steel);">RUCA OIL GAS S.A. — Distribuidor Gulf Oil</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:12px; color:var(--steel);">N° de Recibo</div>
+          <div style="font-family:'Barlow Condensed',sans-serif; font-size:26px; color:var(--gulf-orange); font-weight:700;">${m.numeroRecibo || '—'}</div>
+        </div>
+      </div>
+      <table style="width:100%; font-size:14px; margin-bottom:18px;">
+        <tr><td style="padding:5px 0; color:var(--steel); width:140px;">Fecha</td><td style="padding:5px 0;"><strong>${fechaFmt}</strong></td></tr>
+        <tr><td style="padding:5px 0; color:var(--steel);">${etiquetaPersona}</td><td style="padding:5px 0;"><strong>${cliente}</strong></td></tr>
+        ${esPago ? `<tr><td style="padding:5px 0; color:var(--steel);">Medio de pago</td><td style="padding:5px 0;"><strong>${m.medio || '—'}</strong></td></tr>` : ''}
+        <tr><td style="padding:5px 0; color:var(--steel);">Concepto</td><td style="padding:5px 0;"><strong>${m.concepto || (esPago ? 'Pago recibido' : 'Cargo')}${m.nota ? ' — ' + m.nota : ''}</strong></td></tr>
+      </table>
+      <div style="text-align:center; border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:18px 0; margin-bottom:26px;">
+        <div style="font-size:12px; color:var(--steel);">${etiquetaImporte}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif; font-size:42px; color:var(--gulf-blue); font-weight:700;">${fmt(m.importe)}</div>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:50px; font-size:12.5px; color:var(--steel);">
+        <div style="text-align:center; width:45%; border-top:1px solid #999; padding-top:6px;">Firma</div>
+        <div style="text-align:center; width:45%; border-top:1px solid #999; padding-top:6px;">Aclaración</div>
+      </div>
+    </div>
+  `;
+  imprimirReporte(`${tituloDoc} N° ${m.numeroRecibo || ''}`, cliente, contenido);
+}
+
+document.getElementById('reciboBuscarBtn').addEventListener('click', buscarRecibosAvanzado);
+['reciboBuscarInput','reciboBuscarFecha','reciboBuscarCliente'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') buscarRecibosAvanzado();
+  });
+});
 
 function renderTarjetaCorreccionRecibo(cliente, m){
   const div = document.createElement('div');
@@ -3063,9 +3508,12 @@ function renderTarjetaCorreccionRecibo(cliente, m){
     <p style="font-size:12px; color:var(--steel); margin:8px 0;">${comprobanteResumen}${m.comprobante ? ' — <a href="javascript:void(0)" class="rc-ver-comprobante">ver</a>' : ''}</p>
     <div class="actions-bar">
       <button type="button" class="btn btn-primary rc-guardar">💾 Guardar corrección</button>
+      <button type="button" class="btn btn-secondary rc-ver-recibo">🖨️ Ver / Imprimir recibo</button>
       <button type="button" class="btn btn-secondary rc-ir-ficha">Ver ficha del cliente</button>
     </div>
   `;
+
+  div.querySelector('.rc-ver-recibo').addEventListener('click', ()=> imprimirReciboPago(cliente, m));
 
   div.querySelector('.rc-guardar').addEventListener('click', ()=>{
     const nuevoRecibo = div.querySelector('.rc-recibo').value.trim();
@@ -3104,11 +3552,6 @@ function renderTarjetaCorreccionRecibo(cliente, m){
 
   return div;
 }
-
-document.getElementById('reciboBuscarBtn').addEventListener('click', ()=> buscarRecibo());
-document.getElementById('reciboBuscarInput').addEventListener('keydown', (e)=>{
-  if(e.key === 'Enter') buscarRecibo();
-});
 
 function origenIdDePedido(order){
   const base = `${order.pedidoId || ''}|${order.numero || ''}|${order.cliente || ''}|${order.fecha || ''}|${order.total || ''}`;

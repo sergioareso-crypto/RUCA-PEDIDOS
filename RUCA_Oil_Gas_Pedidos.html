@@ -511,6 +511,7 @@
 <meta name="theme-color" content="#0033A0">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://accounts.google.com/gsi/client" async defer onload="if(typeof inicializarGoogleDrive==='function') inicializarGoogleDrive();"></script>
 </head>
 <body>
 
@@ -553,6 +554,10 @@
   <button class="nav-btn" data-view="cuentacorriente">Cuenta Corriente</button>
   <button class="nav-btn" data-view="busqueda">Búsqueda de Pedidos</button>
   <button class="nav-btn" data-view="ventas">Ventas</button>
+  <div id="driveSyncWidget" style="margin-left:auto; display:flex; align-items:center; gap:8px; padding-right:6px;">
+    <span id="driveSyncStatus" style="font-size:11.5px; color:#fff; opacity:0.85; white-space:nowrap;">☁️ Drive: desconectado</span>
+    <button id="driveConectarBtn" type="button" style="font-size:11.5px; padding:6px 12px; border-radius:5px; border:1px solid rgba(255,255,255,0.45); background:transparent; color:#fff; cursor:pointer; white-space:nowrap;">Conectar Drive</button>
+  </div>
 </nav>
 
 <div class="view active-view" id="view-inicio">
@@ -1773,6 +1778,7 @@ function cargarCatalogoGuardado(key){
 function guardarCatalogo(key, datos){
   try{
     localStorage.setItem(key, JSON.stringify(datos));
+    programarSincronizacionDrive();
     return true;
   }catch(e){
     return false; // por ejemplo, si el navegador se quedó sin espacio disponible
@@ -2659,7 +2665,7 @@ function loadOrdersFromStorage(){
   catch(e){ return []; }
 }
 function saveOrdersToStorage(){
-  try{ localStorage.setItem(ORDERS_KEY, JSON.stringify(ORDERS)); }
+  try{ localStorage.setItem(ORDERS_KEY, JSON.stringify(ORDERS)); programarSincronizacionDrive(); }
   catch(e){ /* si el navegador se queda sin espacio, seguimos igual en memoria */ }
 }
 
@@ -2676,6 +2682,7 @@ function loadAnulaciones(){
 }
 function saveAnulaciones(data){
   localStorage.setItem(ANULACIONES_KEY, JSON.stringify(data));
+  programarSincronizacionDrive();
 }
 let ANULACIONES = loadAnulaciones();
 
@@ -2771,6 +2778,7 @@ function loadAnulacionesItems(){
 }
 function saveAnulacionesItems(data){
   localStorage.setItem(ANULACIONES_ITEMS_KEY, JSON.stringify(data));
+  programarSincronizacionDrive();
 }
 let ANULACIONES_ITEMS = loadAnulacionesItems();
 
@@ -3130,6 +3138,7 @@ function loadLedger(){
 function saveLedgerData(ledger){
   try{
     localStorage.setItem(LEDGER_KEY, JSON.stringify(ledger));
+    programarSincronizacionDrive();
     return true;
   }catch(e){
     return false; // por ejemplo, si el navegador se quedó sin espacio disponible
@@ -4525,7 +4534,7 @@ function loadObjetivos(){
   catch(e){ return {}; }
 }
 function saveObjetivosData(data){
-  try{ localStorage.setItem(OBJETIVOS_KEY, JSON.stringify(data)); return true; }
+  try{ localStorage.setItem(OBJETIVOS_KEY, JSON.stringify(data)); programarSincronizacionDrive(); return true; }
   catch(e){ return false; }
 }
 let OBJETIVOS = loadObjetivos();
@@ -4872,6 +4881,230 @@ if ('serviceWorker' in navigator){
     });
   });
 }
+
+// ============ SINCRONIZACIÓN AUTOMÁTICA CON GOOGLE DRIVE ============
+const GOOGLE_CLIENT_ID = '145713200050-l94lmi83kmo09kjh3d0onmhb34amtl69.apps.googleusercontent.com';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_FILE_NAME = 'ruca_sync_data.json';
+
+let driveAccessToken = null;
+let driveFileId = localStorage.getItem('ruca_drive_file_id') || null;
+let driveTokenClient = null;
+let driveSyncEnabled = localStorage.getItem('ruca_drive_enabled') === 'true';
+let driveSyncTimer = null;
+let aplicandoDesdeNube = false; // evita que aplicar datos bajados de Drive dispare una subida inmediata de vuelta
+
+function actualizarUIDrive(estado, mensajeExtra){
+  const statusEl = document.getElementById('driveSyncStatus');
+  const btn = document.getElementById('driveConectarBtn');
+  if(estado === 'conectado'){
+    const ultima = localStorage.getItem('ruca_drive_ultima_sync');
+    const horaTxt = ultima ? new Date(ultima).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'}) : '—';
+    statusEl.textContent = `☁️ Drive: conectado (últ. sync ${horaTxt})`;
+    statusEl.style.opacity = '1';
+    btn.textContent = 'Sincronizar ahora';
+  } else if(estado === 'sincronizando'){
+    statusEl.textContent = '☁️ Drive: sincronizando...';
+  } else if(estado === 'error'){
+    statusEl.textContent = '☁️ Drive: ' + (mensajeExtra || 'error de sincronización');
+    statusEl.style.opacity = '1';
+  } else {
+    statusEl.textContent = '☁️ Drive: desconectado';
+    statusEl.style.opacity = '0.85';
+    btn.textContent = 'Conectar Drive';
+  }
+}
+
+function inicializarGoogleDrive(){
+  if(typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) return; // sin internet o Google no cargó
+  driveTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: DRIVE_SCOPE,
+    callback: (resp)=>{
+      if(!resp || resp.error){
+        actualizarUIDrive('error', 'no se pudo conectar');
+        return;
+      }
+      driveAccessToken = resp.access_token;
+      driveSyncEnabled = true;
+      localStorage.setItem('ruca_drive_enabled', 'true');
+      actualizarUIDrive('sincronizando');
+      sincronizarAhora(true);
+    }
+  });
+  // Si ya se había conectado antes en este mismo navegador, intentamos reconectar solos y en silencio.
+  if(driveSyncEnabled){
+    try{ driveTokenClient.requestAccessToken({prompt: ''}); }catch(e){}
+  }
+}
+
+document.getElementById('driveConectarBtn').addEventListener('click', ()=>{
+  if(!driveTokenClient){
+    // Puede que Google todavía esté terminando de cargar; probamos un par de veces antes de avisar.
+    let intentos = 0;
+    const reintentar = setInterval(()=>{
+      intentos++;
+      if(typeof google !== 'undefined' && google.accounts && google.accounts.oauth2){
+        clearInterval(reintentar);
+        inicializarGoogleDrive();
+        document.getElementById('driveConectarBtn').click();
+      } else if(intentos >= 6){
+        clearInterval(reintentar);
+        alert('No se pudo cargar Google (¿tenés conexión a internet?). Recargá la página y probá de nuevo.');
+      }
+    }, 500);
+    return;
+  }
+  if(driveAccessToken){
+    actualizarUIDrive('sincronizando');
+    sincronizarAhora(false);
+  } else {
+    driveTokenClient.requestAccessToken({prompt: 'consent'});
+  }
+});
+
+// ---------- Armado y aplicación del paquete completo de datos ----------
+function obtenerBundleSincronizacion(){
+  return {
+    _tipo: 'ruca_sync_bundle_v1',
+    guardadoEl: new Date().toISOString(),
+    ledger: LEDGER,
+    anulaciones: ANULACIONES,
+    anulacionesItems: ANULACIONES_ITEMS,
+    orders: ORDERS,
+    objetivos: OBJETIVOS,
+    productos: PRODUCTS,
+    tecneco: TECNECO_PRODUCTS,
+    clientes: CLIENTS
+  };
+}
+
+function aplicarBundleSincronizacion(bundle){
+  if(!bundle || bundle._tipo !== 'ruca_sync_bundle_v1') return false;
+  aplicandoDesdeNube = true;
+  LEDGER = bundle.ledger || {};
+  ANULACIONES = bundle.anulaciones || {};
+  ANULACIONES_ITEMS = bundle.anulacionesItems || {};
+  ORDERS = bundle.orders || [];
+  OBJETIVOS = bundle.objetivos || {};
+  if(bundle.productos && bundle.productos.length) PRODUCTS = bundle.productos;
+  if(bundle.tecneco && bundle.tecneco.length) TECNECO_PRODUCTS = bundle.tecneco;
+  if(bundle.clientes && bundle.clientes.length) CLIENTS = bundle.clientes;
+
+  saveLedgerData(LEDGER);
+  saveAnulaciones(ANULACIONES);
+  saveAnulacionesItems(ANULACIONES_ITEMS);
+  saveOrdersToStorage();
+  saveObjetivosData(OBJETIVOS);
+  guardarCatalogo(CATALOGOS_KEY.productos, PRODUCTS);
+  guardarCatalogo(CATALOGOS_KEY.tecneco, TECNECO_PRODUCTS);
+  guardarCatalogo(CATALOGOS_KEY.clientes, CLIENTS);
+
+  rebuildProductList();
+  if(typeof rebuildClientList === 'function') rebuildClientList();
+  rebuildMonthOptions();
+  renderTable();
+  if(typeof renderResultadosBusqueda === 'function') renderResultadosBusqueda();
+  if(typeof ccClienteSeleccionado !== 'undefined' && ccClienteSeleccionado) renderClientLedger(ccClienteSeleccionado);
+  if(typeof renderClientsSummary === 'function') renderClientsSummary();
+
+  aplicandoDesdeNube = false;
+  return true;
+}
+
+// ---------- Llamadas a la API de Google Drive ----------
+async function buscarArchivoDrive(){
+  if(driveFileId) return driveFileId;
+  const query = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
+  const resp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive&fields=files(id,name)`, {
+    headers: { Authorization: 'Bearer ' + driveAccessToken }
+  });
+  const data = await resp.json();
+  if(data.files && data.files.length > 0){
+    driveFileId = data.files[0].id;
+    localStorage.setItem('ruca_drive_file_id', driveFileId);
+    return driveFileId;
+  }
+  return null;
+}
+
+async function subirContenidoDrive(contenidoStr){
+  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + driveAccessToken, 'Content-Type': 'application/json' },
+    body: contenidoStr
+  });
+}
+
+async function crearArchivoDrive(contenidoStr){
+  const resp = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + driveAccessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: DRIVE_FILE_NAME })
+  });
+  const data = await resp.json();
+  driveFileId = data.id;
+  localStorage.setItem('ruca_drive_file_id', driveFileId);
+  await subirContenidoDrive(contenidoStr);
+}
+
+async function subirADrive(){
+  if(!driveAccessToken) return;
+  try{
+    const bundle = obtenerBundleSincronizacion();
+    const contenidoStr = JSON.stringify(bundle);
+    const fileId = await buscarArchivoDrive();
+    if(fileId){ await subirContenidoDrive(contenidoStr); }
+    else{ await crearArchivoDrive(contenidoStr); }
+    localStorage.setItem('ruca_drive_ultima_sync', new Date().toISOString());
+    localStorage.setItem('ruca_drive_ultima_sync_local_ts', String(Date.parse(bundle.guardadoEl)));
+    actualizarUIDrive('conectado');
+  }catch(e){
+    actualizarUIDrive('error', 'no se pudo subir');
+  }
+}
+
+async function descargarDeDrive(){
+  const fileId = await buscarArchivoDrive();
+  if(!fileId) return null;
+  const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: 'Bearer ' + driveAccessToken }
+  });
+  if(!resp.ok) return null;
+  try{ return await resp.json(); }catch(e){ return null; }
+}
+
+async function sincronizarAhora(esConexionInicial){
+  if(!driveAccessToken) return;
+  try{
+    const remoto = await descargarDeDrive();
+    if(remoto && remoto.guardadoEl){
+      const remotoTs = Date.parse(remoto.guardadoEl);
+      const ultimaTsConocida = parseInt(localStorage.getItem('ruca_drive_ultima_sync_local_ts') || '0', 10);
+      if(remotoTs > ultimaTsConocida){
+        aplicarBundleSincronizacion(remoto);
+        localStorage.setItem('ruca_drive_ultima_sync_local_ts', String(remotoTs));
+        localStorage.setItem('ruca_drive_ultima_sync', new Date().toISOString());
+        actualizarUIDrive('conectado');
+        return;
+      }
+    }
+    // No había nada más nuevo en la nube: subimos lo que tenemos acá.
+    await subirADrive();
+  }catch(e){
+    actualizarUIDrive('error', 'no se pudo sincronizar');
+  }
+}
+
+// Se llama automáticamente cada vez que se guarda algo localmente (pedidos, cuenta corriente,
+// objetivos, catálogos). Espera unos segundos por si hay más cambios seguidos, y recién ahí sube.
+function programarSincronizacionDrive(){
+  if(!driveSyncEnabled || !driveAccessToken || aplicandoDesdeNube) return;
+  if(driveSyncTimer) clearTimeout(driveSyncTimer);
+  driveSyncTimer = setTimeout(()=>{ subirADrive(); }, 4000);
+}
+
+inicializarGoogleDrive();
 
 </script>
 

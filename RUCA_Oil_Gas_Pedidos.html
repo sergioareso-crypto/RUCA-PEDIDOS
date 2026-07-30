@@ -4922,7 +4922,8 @@ function inicializarGoogleDrive(){
     scope: DRIVE_SCOPE,
     callback: (resp)=>{
       if(!resp || resp.error){
-        actualizarUIDrive('error', 'no se pudo conectar');
+        console.error('Error de conexión con Google Drive:', resp);
+        actualizarUIDrive('error', 'no se pudo conectar (' + (resp && resp.error ? resp.error : 'sin respuesta de Google') + ')');
         return;
       }
       driveAccessToken = resp.access_token;
@@ -5020,6 +5021,9 @@ async function buscarArchivoDrive(){
     headers: { Authorization: 'Bearer ' + driveAccessToken }
   });
   const data = await resp.json();
+  if(!resp.ok){
+    throw new Error((data.error && data.error.message) || `Error ${resp.status} al buscar el archivo en Drive`);
+  }
   if(data.files && data.files.length > 0){
     driveFileId = data.files[0].id;
     localStorage.setItem('ruca_drive_file_id', driveFileId);
@@ -5029,11 +5033,16 @@ async function buscarArchivoDrive(){
 }
 
 async function subirContenidoDrive(contenidoStr){
-  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+  const resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
     method: 'PATCH',
     headers: { Authorization: 'Bearer ' + driveAccessToken, 'Content-Type': 'application/json' },
     body: contenidoStr
   });
+  if(!resp.ok){
+    let data = {};
+    try{ data = await resp.json(); }catch(e){}
+    throw new Error((data.error && data.error.message) || `Error ${resp.status} al subir el contenido a Drive`);
+  }
 }
 
 async function crearArchivoDrive(contenidoStr){
@@ -5043,6 +5052,9 @@ async function crearArchivoDrive(contenidoStr){
     body: JSON.stringify({ name: DRIVE_FILE_NAME })
   });
   const data = await resp.json();
+  if(!resp.ok || !data.id){
+    throw new Error((data.error && data.error.message) || `Error ${resp.status} al crear el archivo en Drive`);
+  }
   driveFileId = data.id;
   localStorage.setItem('ruca_drive_file_id', driveFileId);
   await subirContenidoDrive(contenidoStr);
@@ -5060,7 +5072,8 @@ async function subirADrive(){
     localStorage.setItem('ruca_drive_ultima_sync_local_ts', String(Date.parse(bundle.guardadoEl)));
     actualizarUIDrive('conectado');
   }catch(e){
-    actualizarUIDrive('error', 'no se pudo subir');
+    console.error('Error al subir a Google Drive:', e);
+    actualizarUIDrive('error', 'no se pudo subir (' + (e && e.message ? e.message : 'error desconocido') + ')');
   }
 }
 
@@ -5092,7 +5105,7 @@ async function sincronizarAhora(esConexionInicial){
     // No había nada más nuevo en la nube: subimos lo que tenemos acá.
     await subirADrive();
   }catch(e){
-    actualizarUIDrive('error', 'no se pudo sincronizar');
+    actualizarUIDrive('error', 'no se pudo sincronizar (' + (e && e.message ? e.message : 'error desconocido') + ')');
   }
 }
 

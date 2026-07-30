@@ -1,11 +1,9 @@
 // Service Worker de RUCA Oil Gas - Pedidos
-// Guarda una copia de la app para que abra rápido y funcione offline
-// una vez que el archivo se aloje en un servidor web (http/https).
-// Nota: los navegadores no permiten Service Workers en páginas abiertas
-// como archivo local (file:///), así que mientras se use así, este
-// archivo simplemente no se activa (la app funciona igual, sin este extra).
+// Estrategia: siempre intenta traer la versión más nueva de internet primero.
+// Solo usa la copia guardada si no hay conexión (para que la app funcione offline).
+// v2: antes guardaba la primera versión para siempre y nunca buscaba actualizaciones — corregido.
 
-const CACHE_NAME = 'ruca-gulf-v1';
+const CACHE_NAME = 'ruca-gulf-v2';
 const ARCHIVOS_A_GUARDAR = [
   './RUCA_Oil_Gas_Pedidos.html',
   './manifest.json',
@@ -33,6 +31,12 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request).then((respuesta) => respuesta || fetch(event.request))
+    fetch(event.request)
+      .then((respuestaDeRed) => {
+        const copia = respuestaDeRed.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copia));
+        return respuestaDeRed;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
